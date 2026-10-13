@@ -1,0 +1,232 @@
+
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Meine Countdown-Uhr</title>
+<style>
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: white;
+  color: #222;
+  text-align: center;
+}
+main {
+  max-width: 500px;
+  margin: auto;
+  padding: 12px;
+}
+h2 { margin: 10px 0 18px; }
+.clock {
+  position: relative;
+  width: min(78vw, 320px);
+  aspect-ratio: 1;
+  margin: 15px auto;
+}
+.clock svg {
+  width: 100%;
+  height: 100%;
+}
+.center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  pointer-events: none;
+}
+.time {
+  font-size: 42px;
+  font-weight: bold;
+}
+.unit { font-size: 14px; color: #666; }
+button, input {
+  font-size: 18px;
+  padding: 10px;
+  margin: 5px;
+  border-radius: 10px;
+}
+button {
+  background: #eee;
+  border: 1px solid #ccc;
+  cursor: pointer;
+}
+.primary {
+  background: #2563eb;
+  color: white;
+  border-color: #2563eb;
+}
+input { width: 85px; }
+#miniControls { display: none; }
+body.mini main { padding: 4px; }
+body.mini h2,
+body.mini #settings,
+body.mini #normalControls { display: none; }
+body.mini .clock {
+  width: min(85vw, 230px);
+  margin: 5px auto;
+}
+body.mini .time { font-size: 30px; }
+body.mini #miniControls { display: block; }
+body.mini #miniControls button {
+  font-size: 14px;
+  padding: 7px;
+}
+</style>
+</head>
+<body>
+<main>
+<h2>Meine Countdown-Uhr</h2>
+
+<div id="settings">
+  <label for="minutes">Minuten:</label>
+  <input id="minutes" type="number"
+         min="1" max="60" value="5">
+  <button id="set">Einstellen</button>
+</div>
+
+<div class="clock">
+  <svg viewBox="0 0 200 200" aria-label="Countdown-Uhr">
+    <circle cx="100" cy="100" r="90"
+            fill="#e5e7eb"/>
+    <path id="redSector" fill="#e44848"/>
+    <circle cx="100" cy="100" r="90"
+            fill="none" stroke="#888"
+            stroke-width="1"/>
+  </svg>
+  <div class="center">
+    <div id="time" class="time">05:00</div>
+    <div class="unit">verbleibend</div>
+  </div>
+</div>
+
+<div id="normalControls">
+  <button class="primary" id="start">Start</button>
+  <button id="pause">Pause</button>
+  <button id="reset">Zurücksetzen</button>
+  <button id="mini">Mini-Modus</button>
+</div>
+
+<div id="miniControls">
+  <button id="miniPause">Pause</button>
+  <button id="large">Großansicht</button>
+</div>
+</main>
+
+<script>
+const sector = document.getElementById("redSector");
+const timeLabel = document.getElementById("time");
+const minutesInput = document.getElementById("minutes");
+const startButton = document.getElementById("start");
+const miniPause = document.getElementById("miniPause");
+
+let duration = 5 * 60;
+let remaining = duration;
+let running = false;
+let deadline = 0;
+let timerId = null;
+
+function draw(seconds) {
+  const fraction = Math.max(0, Math.min(1, seconds / 3600));
+
+  if (fraction >= 1) {
+    sector.setAttribute("d",
+      "M100 10 A90 90 0 1 1 99.999 10 Z");
+  } else if (fraction <= 0) {
+    sector.setAttribute("d", "");
+  } else {
+    const angle = 2 * Math.PI * fraction;
+    const x = 100 + 90 * Math.sin(angle);
+    const y = 100 - 90 * Math.cos(angle);
+    const large = fraction > 0.5 ? 1 : 0;
+
+    sector.setAttribute("d",
+      `M100 100 L100 10 A90 90 0 ${large} 1 ${x} ${y} Z`);
+  }
+
+  const s = Math.ceil(Math.max(0, seconds));
+  const mm = Math.floor(s / 60);
+  const ss = s % 60;
+  timeLabel.textContent =
+    String(mm).padStart(2, "0") + ":" +
+    String(ss).padStart(2, "0");
+}
+
+function tick() {
+  if (!running) return;
+  remaining = Math.max(0, (deadline - Date.now()) / 1000);
+  draw(remaining);
+
+  if (remaining <= 0) {
+    stop();
+    remaining = 0;
+    draw(0);
+  }
+}
+
+function stop() {
+  running = false;
+  if (timerId !== null) clearInterval(timerId);
+  timerId = null;
+  startButton.textContent = "Start";
+  miniPause.textContent = "Weiter";
+}
+
+function start() {
+  if (running) return;
+  if (remaining <= 0) remaining = duration;
+  deadline = Date.now() + remaining * 1000;
+  running = true;
+  startButton.textContent = "Läuft";
+  miniPause.textContent = "Pause";
+  timerId = setInterval(tick, 100);
+  tick();
+}
+
+function pause() {
+  if (!running) return;
+  tick();
+  stop();
+}
+
+function reset() {
+  stop();
+  remaining = duration;
+  draw(remaining);
+}
+
+function setDuration() {
+  const n = Number(minutesInput.value);
+  if (!Number.isFinite(n)) return;
+  const valid = Math.max(1, Math.min(60, Math.round(n)));
+  minutesInput.value = valid;
+  duration = valid * 60;
+  reset();
+}
+
+document.getElementById("set").onclick = setDuration;
+startButton.onclick = start;
+document.getElementById("pause").onclick = pause;
+document.getElementById("reset").onclick = reset;
+
+document.getElementById("mini").onclick = () => {
+  document.body.classList.add("mini");
+};
+
+document.getElementById("large").onclick = () => {
+  document.body.classList.remove("mini");
+};
+
+miniPause.onclick = () => {
+  if (running) pause();
+  else start();
+};
+
+draw(remaining);
+</script>
+</body>
+</html>
